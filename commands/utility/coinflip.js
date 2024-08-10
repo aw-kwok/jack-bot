@@ -28,7 +28,7 @@ module.exports = {
         const avatar = interaction.user.displayAvatarURL();
         const userId = interaction.user.id;
 
-        const balance = await retrieveBalance(userId);
+        let balance = await retrieveBalance(userId);
         const wager = interaction.options.getNumber("wager");
 
         if (debug) console.log(`Balance: ${balance}`);
@@ -64,18 +64,17 @@ module.exports = {
         if (input === result) {
             embed.setTitle(`You win!`);
             wagerDisplay = `**+${wager}:milk:**`
-            await updateBalance(userId, wager);
+            balance = await updateBalance(userId, wager);
         }
         else {
             embed.setTitle(`You lose.`);
             wagerDisplay = `**-${wager}:milk:**`
-            await updateBalance(userId, -wager);
+            balance = await updateBalance(userId, -wager);
         }
 
         embed.setDescription(`The coin landed on **${result}**\n${wagerDisplay}`);
 
-        const newBalance = await retrieveBalance(userId);
-        embed.setFooter({ text: `Balance: ${newBalance}🥛` });
+        embed.setFooter({ text: `Balance: ${balance}🥛` });
         
         // handle thumbnail
         const file = (result === "heads") ? new AttachmentBuilder("./assets/heads.png") : new AttachmentBuilder("./assets/tails.png");

@@ -40,7 +40,7 @@ const checkPlayer = (discord_id) => {
                     if (err) {
                         return reject('Error inserting player: ' + err.message);
                     }
-                    console.log(`Player with discord_id ${discord_id} added.`);
+                    //console.log(`Player with discord_id ${discord_id} added.`);
                     resolve(); // Player added, resolve the promise
                 });
             } else {
@@ -55,13 +55,13 @@ const retrieveBalance = async (discord_id) => {
     try {
         await checkPlayer(discord_id);
         const getQuery = `SELECT balance FROM players WHERE discord_id = ?`;
-        return new Promise((resolve, reject) => {
+        const balance = await new Promise((resolve, reject) => {
             db.get(getQuery, [discord_id], (err, row) => {
                 if (err) {
                     return reject('Error retrieving balance: ' + err.message);
                 }
                 if (row) {
-                    console.log(`Balance for player: ${row.balance}`);
+                    //console.log(`Balance for player: ${row.balance}`);
                     resolve(row.balance);
                 } else {
                     console.log('Player not found.');
@@ -69,6 +69,8 @@ const retrieveBalance = async (discord_id) => {
                 }
             });
         });
+
+        return balance;
     } catch (error) {
         console.error(error);
     }
@@ -82,15 +84,17 @@ const updateBalance = async (discord_id, amount) => {
         const currentBalance = await retrieveBalance(discord_id);
         const updateQuery = 'UPDATE players SET balance = ? WHERE discord_id = ?';
         const newBalance = currentBalance + amount;
-        return new Promise((resolve, reject) => {
+        const query = new Promise((resolve, reject) => {
             db.run(updateQuery, [newBalance, discord_id], function(err) {
                 if (err) {
                     return reject('Error updating balance: ' + err.message);
                 }
-                console.log(`Balance for player with discord_id ${discord_id} updated to ${newBalance}.`);
-                resolve();
+                //console.log(`Balance for player with discord_id ${discord_id} updated to ${newBalance}.`);
+                resolve(newBalance);
             });
         });
+
+        return newBalance;
     } catch (error) {
         console.error(error);
     }

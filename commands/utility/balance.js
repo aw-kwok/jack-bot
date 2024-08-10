@@ -23,9 +23,7 @@ module.exports = {
                 name: name,
                 iconURL: avatar
             })
-            .setTitle(`Your balance: ${balance}🥛`)
-
-        // embed.setFooter({ text: `Balance: ${balance}` });
+            .setDescription(`Your balance: **${balance}🥛**`)
 
 		await interaction.reply({ embeds: [embed] });
 	},
