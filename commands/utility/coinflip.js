@@ -11,8 +11,8 @@ module.exports = {
             option.setName("selection")
                 .setDescription("Heads or tails")
                 .addChoices(
-                    { name: "heads", value: "Heads"},
-                    { name: "tails", value: "Tails"}
+                    { name: "heads", value: "heads"},
+                    { name: "tails", value: "tails"}
                 )
                 .setRequired(true))
         .addNumberOption(option =>
@@ -22,6 +22,8 @@ module.exports = {
                 .setMinValue(1)),
 
 	async execute(interaction) {
+        if (debug) console.log("In coinflip:")
+
         const name = interaction.member.nickname ? interaction.member.nickname : interaction.user.username;
         const avatar = interaction.user.displayAvatarURL();
         const userId = interaction.user.id;
@@ -41,12 +43,12 @@ module.exports = {
                 })
                 .setTitle("Not enough money")
                 .setDescription(`You don't have enough money to wager this amount!`)
-                .setFooter({ text: `Balance: ${balance}` })
+                .setFooter({ text: `Balance: ${balance}🥛` })
             ]})
             return;
         }
 
-        const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
+        const result = Math.random() < 0.5 ? 'heads' : 'tails';
         const input = interaction.options.getString("selection");
 
         const embed = new EmbedBuilder()
@@ -55,32 +57,34 @@ module.exports = {
                 name: name,
                 iconURL: avatar
             })
-            .setTitle((input === result) ? "You win!" : "You lose.")
-            .setDescription(`The coin landed on **${result}**`);
+        
+        let wagerDisplay;
 
         // update user balance
         if (input === result) {
-            embed.setTitle(`You win! +${wager}`);
+            embed.setTitle(`You win!`);
+            wagerDisplay = `**+${wager}:milk:**`
             await updateBalance(userId, wager);
         }
         else {
-            embed.setTitle(`You lose. -${wager}`);
+            embed.setTitle(`You lose.`);
+            wagerDisplay = `**-${wager}:milk:**`
             await updateBalance(userId, -wager);
         }
 
-        const newBalance = await retrieveBalance(userId);
-        embed.setFooter({ text: `Balance: ${newBalance}` });
-        
+        embed.setDescription(`The coin landed on **${result}**\n${wagerDisplay}`);
 
+        const newBalance = await retrieveBalance(userId);
+        embed.setFooter({ text: `Balance: ${newBalance}🥛` });
         
         // handle thumbnail
-        const file = (result === "Heads") ? new AttachmentBuilder("./assets/heads.png") : new AttachmentBuilder("./assets/tails.png");
+        const file = (result === "heads") ? new AttachmentBuilder("./assets/heads.png") : new AttachmentBuilder("./assets/tails.png");
 
-        if(result === "Heads") {
+        if(result === "heads") {
             embed.setThumbnail("attachment://heads.png");
         }
         else {
-            embed.setThumbnail("attachment://tails.png")
+            embed.setThumbnail("attachment://tails.png");
         }
 
 		await interaction.reply({ embeds: [embed], files: [file] });
