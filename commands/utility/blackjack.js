@@ -13,45 +13,40 @@ module.exports = {
 		
 	async execute(interaction) {
 		// need to get the user's balance and bet
-		let userBal = 100; 
-		// let userBal = retrieveBalance(id, interaction.user.username);
-		let betAmount = interaction.options.getInteger('bet');
-
-		// validate bet
-		if (betAmount <=0) {
-			return interaction.reply('You must place a valid bet!');
-		}
-		if (betAmount > userBal) {
-			return interaction.reply('Bet amount exceeds your existing funds. You have: ' 
-				+ userBal + ':milk: remaining.')
-		}
-
-		// initialize embed
 		const id = interaction.member.id;
 		const name = interaction.member.nickname ? interaction.member.nickname : interaction.user.username;
         const avatar = interaction.user.displayAvatarURL();
-		const embed = new EmbedBuilder()
-            .setColor(0x0099FF)
-            .setAuthor({
-                name: name,
-                iconURL: avatar
-            })
-            .setTitle('Blackjack')
-            .setDescription(`A ${betAmount}:milk: hand of blackjack.`);
 
-		const row = new ActionRowBuilder()
-			.addComponents(
-				new ButtonBuilder()
-					.setCustomId('hit')
-					.setLabel('Hit')
-					.setStyle('Primary'),
-				new ButtonBuilder()
-					.setCustomId('stand')
-					.setLabel('Stand')
-					.setStyle('Secondary')
-			);
-        
-		await interaction.reply({ embeds: [embed], components: [row] });
+		let balance = await retrieveBalance(id);
+		let betAmount = interaction.options.getInteger('bet');
+
+		// validate bet
+		if (betAmount <= 0) {
+			await interaction.reply({ embeds: [new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setAuthor({
+                    name: name,
+                    iconURL: avatar
+                })
+                .setTitle("Invalid bet")
+                .setDescription(`Your bet must be greater than 0!`)
+                .setFooter({ text: `Balance: ${balance}🥛` })
+            ]})
+            return;
+		}
+		if (betAmount > balance) {
+			await interaction.reply({ embeds: [new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setAuthor({
+                    name: name,
+                    iconURL: avatar
+                })
+                .setTitle("Not enough money")
+                .setDescription(`You're too broke to wager this amount!`)
+                .setFooter({ text: `Balance: ${balance}🥛` })
+            ]})
+            return;
+		};
 
 		// instantiate the deck
 		const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -82,15 +77,38 @@ module.exports = {
 		let win = null
 
 		// embed window should now contain the dealer hand (first card displayed)
-		embed.addFields(
-			{ name: 'Dealer\'s Hand', value: formatHand([dealerHand[0]]), inline: false },
-			{ name: 'Your Hand', value: formatHand(playerHand) + `( Total: ${playerHandVal})`, inline: false },
-		);
+		const embed = new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setAuthor({
+                name: name,
+                iconURL: avatar
+            })
+            .setTitle('Blackjack')
+            .setDescription(`A ${betAmount}:milk: hand of blackjack.`)
+			.addFields(
+				{ name: 'Dealer\'s Hand', value: formatHand([dealerHand[0]]) + ', ??', inline: false },
+				{ name: 'Your Hand', value: formatHand(playerHand) + `( Total: ${playerHandVal})`, inline: false },
+			);
+
+		const row = new ActionRowBuilder()
+			.addComponents(
+				new ButtonBuilder()
+					.setCustomId('hit')
+					.setLabel('Hit')
+					.setStyle('Primary'),
+				new ButtonBuilder()
+					.setCustomId('stand')
+					.setLabel('Stand')
+					.setStyle('Secondary')
+			);
+        
+		await interaction.reply({ embeds: [embed], components: [row] });
 
 		// let the playing user hit or stand
 		const filter = i => i.user.id === interaction.user.id;
 		const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
 		collector.on('collect', async i => {
+			let twentyOne = false;
 			if (i.customId === 'hit') {
 				// hit in player hand
 				playerHand.push(drawCard());
@@ -101,29 +119,41 @@ module.exports = {
 				
 				// check for bust
 				if (playerHandVal > 21) {
-					embed.setDescription('You busted! Dealer wins.')
+					embed.setTitle('You busted! Dealer wins.');
+					embed.setDescription(' ');
+					balance = await updateBalance(id, -betAmount);
+					embed.setFooter({ text: `Balance: ${balance}🥛` });
 					await i.update({ embeds: [embed], components: [] });
 					collector.stop();
+				} else if (playerHandVal == 21) {
+					twentyOne = true;
 				} else {
 					await i.update({ embeds: [embed], components: [row] });
-				}
-			} else if (i.customId === 'stand') {
+				};
+			};
+			if (i.customId === 'stand' || twentyOne) {
 				// end player's turn
 				collector.stop();
 
 				// finish dealer hand
 				dealerHandVal = finishDealer();
 				if (dealerHandVal > 21 || playerHandVal > dealerHandVal) {
-					embed.setDescription('You win!');
+					embed.setTitle('You win!');
+					embed.setDescription(' ');
 					win = true;
+					balance = await updateBalance(id, betAmount);
 				} else if (playerHandVal < dealerHandVal) {
-					embed.setDescription('You lose! Dealer wins.');
+					embed.setTitle('You lose! Dealer wins.');
+					embed.setDescription(' ');
 					win = false;
+					balance = await updateBalance(id, -betAmount);
 				} else {
-					embed.setDescription('It\'s a tie! You and the dealer push.');
+					embed.setTitle('It\'s a tie! You and the dealer push.');
+					embed.setDescription(' ');
 				}
-
-				embed.spliceFields(0, 1, { name: 'Dealer\'s Hand', value: `${dealerFinalHand} (Total: ${dealerVal[0]})`, inline: false });
+				
+				embed.setFooter({ text: `Balance: ${balance}🥛` });
+				embed.spliceFields(0, 1, { name: 'Dealer\'s Hand', value: formatHand(dealerHand) + ` (Total: ${dealerHandVal})`, inline: false });
 
 				await i.update({ embeds: [embed], components: [] });
 			}
@@ -136,7 +166,6 @@ module.exports = {
 			}
 		});
 		
-		// optional (for card counting): when the "pile" has only 52 cards left, "enqueue" 52 shuffled cards
 
 		// -------------------------------------------------------
 
@@ -150,23 +179,23 @@ module.exports = {
 		function calculateHandValue(hand) {
 			let hardVal = 0;
 			let aceCount = 0;
-
+		
 			hand.forEach(card => {
-				if (['J', 'Q', 'K'].includes(card[1])) {
+				if (['J', 'Q', 'K'].includes(card.rank)) {
 					hardVal += 10;
-				} else if (card[1] == 'A') {
+				} else if (card.rank === 'A') {
 					aceCount += 1;
-					hardVal += 11
+					hardVal += 11;
 				} else {
-					hardVal += parseInt(card[1])
+					hardVal += parseInt(card.rank);
 				}
-			})
-
+			});
+		
 			while (hardVal > 21 && aceCount > 0) {
 				hardVal -= 10;
 				aceCount -= 1;
 			}
-
+		
 			return hardVal;
 		}
 
@@ -183,14 +212,6 @@ module.exports = {
 		// formatHand(hand): formats the hand for display in the embed
 		function formatHand(hand) {
 			return hand.map(card => `${card.rank} :${card.suit}:`).join(', ');
-		}
-
-		// updateBal(win): updates the balance of the user based on whether win is true or false
-		function updateBal(win) {
-			if (win != null) {
-				let delta = win ? betAmount : -betAmount;
-				updateBalance(id, delta)
-			}
 		}
 	},
 };
